@@ -10,7 +10,7 @@ import { connect } from 'cloudflare:sockets';
 let userID = '89b3cbba-e6ac-485a-9481-976a0415eab9';
 
 // https://www.nslookup.io/domains/bpb.yousef.isegaro.com/dns-records/
-const proxyIPs= ['bpb.yousef.isegaro.com'];
+const proxyIPs = ['bpb.yousef.isegaro.com'];
 const defaultHttpPorts = ['80', '8080', '2052', '2082', '2086', '2095', '8880'];
 const defaultHttpsPorts = ['443', '8443', '2053', '2083', '2087', '2096'];
 let proxyIP = proxyIPs[Math.floor(Math.random() * proxyIPs.length)];
@@ -23,6 +23,139 @@ let panelVersion = '2.6';
 
 if (!isValidUUID(userID)) throw new Error(`Invalid UUID: ${userID}`);
 if (!isValidSHA224(hashPassword)) throw new Error(`Invalid Hash password: ${hashPassword}`);
+
+// مدیریت کاربران
+let users = {
+    "user1": {
+        "uuid": "user1-uuid",
+        "shadowsocksPassword": "password1",
+        "trojanPassword": "trojan1",
+        "vlessUUID": "vless-uuid-1",
+        "allowedIPs": ["0.0.0.0/0"],
+        "ports": [443, 8443]
+    },
+    "user2": {
+        "uuid": "user2-uuid",
+        "shadowsocksPassword": "password2",
+        "trojanPassword": "trojan2",
+        "vlessUUID": "vless-uuid-2",
+        "allowedIPs": ["192.168.1.0/24"],
+        "ports": [443]
+    }
+};
+
+function getUserConfig(uuid) {
+    return Object.values(users).find(user => user.uuid === uuid);
+}
+
+export default {
+    async fetch(request, env, ctx) {
+        try {
+            userID = env.UUID || userID;
+            proxyIP = env.PROXYIP || proxyIP;
+            dohURL = env.DNS_RESOLVER_URL || dohURL;
+            trojanPassword = env.TROJAN_PASS || trojanPassword;
+            hashPassword = env.HASH_PASS || hashPassword;
+
+            const url = new URL(request.url);
+
+            if (url.pathname === '/ss') { // Shadowsocks
+                const uuid = url.searchParams.get('uuid');
+                const userConfig = getUserConfig(uuid);
+                if (userConfig) {
+                    return await shadowsocksOverTCPHandler(request, userConfig);
+                } else {
+                    return new Response("User not found", { status: 404 });
+                }
+            }
+
+            // سایر مسیرها و پروتکل‌ها ...
+
+        } catch (err) {
+            const errorPage = renderErrorPage('Something went wrong!', err.message.toString(), false);
+            return new Response(errorPage, { status: 200, headers: { 'Content-Type': 'text/html' } });
+        }
+    },
+};
+
+/**
+ * Handles Shadowsocks over TCP connections.
+ */
+async function shadowsocksOverTCPHandler(request, userConfig) {
+    const remoteSocketWapper = { value: null };
+
+    try {
+        // پردازش هدر Shadowsocks
+        const { addressRemote, portRemote } = await processShadowsocksHeader(request, userConfig.shadowsocksPassword);
+
+        // اتصال به سرور با استفاده از TCP
+        const tcpSocket = await connectToTCP(addressRemote, portRemote);
+
+        // ارسال و دریافت داده‌ها
+        const readableStream = new ReadableStream({
+            start(controller) {
+                const reader = tcpSocket.readable.getReader();
+                function read() {
+                    reader.read().then(({ done, value }) => {
+                        if (done) {
+                            controller.close();
+                            return;
+                        }
+                        controller.enqueue(value);
+                        read();
+                    });
+                }
+                read();
+            }
+        });
+
+        // ارسال داده‌ها از کلاینت به TCP
+        const writer = tcpSocket.writable.getWriter();
+        request.body.pipeTo(writer).catch(err => {
+            console.error("Error writing to TCP socket", err);
+        });
+
+        return new Response(readableStream, { status: 200 });
+    } catch (err) {
+        console.error("Error handling Shadowsocks TCP connection", err);
+        return new Response("TCP connection failed", { status: 500 });
+    }
+}
+
+/**
+ * Connects to the specified TCP address and port.
+ */
+async function connectToTCP(addressRemote, portRemote) {
+    const tcpSocket = await connect({
+        hostname: addressRemote,
+        port: portRemote
+    });
+
+    console.log(`Connected to ${addressRemote}:${portRemote}`);
+    return tcpSocket;
+}
+
+/**
+ * Processes the Shadowsocks header.
+ */
+async function processShadowsocksHeader(request, expectedPassword) {
+    const buffer = await request.arrayBuffer();
+    const receivedPassword = extractPasswordFromBuffer(buffer);
+
+    if (receivedPassword !== expectedPassword) {
+        throw new Error("Invalid password for Shadowsocks");
+    }
+
+    const addressRemote = "example.com"; // آدرس سرور واقعی را اینجا بگذارید
+    const portRemote = 443; // پورت سرور واقعی را اینجا بگذارید
+
+    return { addressRemote, portRemote };
+}
+
+function extractPasswordFromBuffer(buffer) {
+    const password = ""; // منطق استخراج رمز عبور را اینجا اضافه کنید
+    return password;
+}
 
 export default {
     /**
