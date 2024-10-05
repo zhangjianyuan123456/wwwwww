@@ -19,7 +19,7 @@ let trojanPassword = `bpb-trojan`;
 // https://emn178.github.io/online-tools/sha224.html
 // https://www.atatus.com/tools/sha224-to-hash
 let hashPassword = 'b5d0a5f7ff7aac227bc68b55ae713131ffdf605ca0da52cce182d513';
-let panelVersion = '2.6.1';
+let panelVersion = '2.6';
 
 if (!isValidUUID(userID)) throw new Error(`Invalid UUID: ${userID}`);
 if (!isValidSHA224(hashPassword)) throw new Error(`Invalid Hash password: ${hashPassword}`);
@@ -89,7 +89,7 @@ export default {
                                 headers: {
                                     'Content-Type': 'application/json;charset=utf-8',
                                     'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-                                    'CDN-Cache-Control': 'no-store'
+                                    'Surrogate-Control': 'no-store'
                                 }
                             });                            
                         }
@@ -101,7 +101,7 @@ export default {
                                 headers: {
                                     'Content-Type': 'application/json;charset=utf-8',
                                     'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-                                    'CDN-Cache-Control': 'no-store'
+                                    'Surrogate-Control': 'no-store'
                                 }
                             });                            
                         }
@@ -112,7 +112,7 @@ export default {
                             headers: {
                                 'Content-Type': 'text/plain;charset=utf-8',
                                 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-                                'CDN-Cache-Control': 'no-store'
+                                'Surrogate-Control': 'no-store'
                             }
                         });                        
 
@@ -120,14 +120,14 @@ export default {
   
                         let fragConfigs = client === 'hiddify'
                             ? await getSingboxConfig(env, host, client, false, true)
-                            : (await getXrayFragmentConfigs(env, host));
+                            : (await getFragmentConfigs(env, host));
 
                         return new Response(JSON.stringify(fragConfigs, null, 4), { 
                             status: 200,
                             headers: {
                                 'Content-Type': 'application/json;charset=utf-8',
                                 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-                                'CDN-Cache-Control': 'no-store'
+                                'Surrogate-Control': 'no-store'
                             }
                         });
 
@@ -140,7 +140,7 @@ export default {
                                 headers: {
                                     'Content-Type': 'application/json;charset=utf-8',
                                     'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-                                    'CDN-Cache-Control': 'no-store'
+                                    'Surrogate-Control': 'no-store'
                                 }
                             });                            
                         }
@@ -152,7 +152,7 @@ export default {
                                 headers: {
                                     'Content-Type': 'application/json;charset=utf-8',
                                     'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-                                    'CDN-Cache-Control': 'no-store'
+                                    'Surrogate-Control': 'no-store'
                                 }
                             });                            
                         }
@@ -163,7 +163,7 @@ export default {
                             headers: {
                                 'Content-Type': 'application/json;charset=utf-8',
                                 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-                                'CDN-Cache-Control': 'no-store'
+                                'Surrogate-Control': 'no-store'
                             }
                         });
 
@@ -296,10 +296,11 @@ export default {
                 return url.pathname.startsWith('/tr') ? await trojanOverWSHandler(request) : await vlessOverWSHandler(request);
             }
         } catch (err) {
-            const errorPage = renderErrorPage('Something went wrong!', err, false);
+            /** @type {Error} */ let e = err;
+            const errorPage = renderErrorPage('Something went wrong!', e.message.toString(), false);
             return new Response(errorPage, { status: 200, headers: {'Content-Type': 'text/html'}});
         }
-    }
+    },
 };
 
 /**
@@ -1191,12 +1192,12 @@ function base64ToDecimal (base64) {
     return decimalArray;
 }
 
-async function updateDataset (env, newSettings, resetSettings) {
-    let currentSettings;
+async function updateDataset (env, Settings, resetSettings) {
+    let currentProxySettings;
 
     if (!resetSettings) {
         try {
-            currentSettings = await env.bpb.get("proxySettings", {type: 'json'});
+            currentProxySettings = await env.bpb.get("proxySettings", {type: 'json'});
         } catch (error) {
             console.log(error);
             throw new Error(`An error occurred while getting current values - ${error}`);
@@ -1205,45 +1206,44 @@ async function updateDataset (env, newSettings, resetSettings) {
         await env.bpb.delete('warpConfigs');
     }
 
-    const chainProxy = newSettings?.get('outProxy');
+    const chainProxy = Settings?.get('outProxy');
     const proxySettings = {
-        remoteDNS: newSettings ? newSettings.get('remoteDNS') : currentSettings ? currentSettings.remoteDNS : 'https://dns.google/dns-query',
-        localDNS: newSettings ? newSettings.get('localDNS') : currentSettings ? currentSettings.localDNS : '8.8.8.8',
-        lengthMin: newSettings ? newSettings.get('fragmentLengthMin') : currentSettings ? currentSettings.lengthMin : '100',
-        lengthMax: newSettings ? newSettings.get('fragmentLengthMax') : currentSettings ? currentSettings.lengthMax : '200',
-        intervalMin: newSettings ? newSettings.get('fragmentIntervalMin') : currentSettings ? currentSettings.intervalMin : '1',
-        intervalMax: newSettings ? newSettings.get('fragmentIntervalMax') : currentSettings ? currentSettings.intervalMax : '1',
-        fragmentPackets: newSettings ? newSettings.get('fragmentPackets') : currentSettings ? currentSettings.fragmentPackets : 'tlshello',
-        blockAds: newSettings ? newSettings.get('block-ads') : currentSettings ? currentSettings.blockAds : false,
-        bypassIran: newSettings ? newSettings.get('bypass-iran') : currentSettings ? currentSettings.bypassIran : false,
-        blockPorn: newSettings ? newSettings.get('block-porn') : currentSettings ? currentSettings.blockPorn : false,
-        bypassLAN: newSettings ? newSettings.get('bypass-lan') : currentSettings ? currentSettings.bypassLAN : false,
-        bypassChina: newSettings ? newSettings.get('bypass-china') : currentSettings ? currentSettings.bypassChina : false,
-        blockUDP443: newSettings ? newSettings.get('block-udp-443') : currentSettings ? currentSettings.blockUDP443 : false,
-        cleanIPs: newSettings ? newSettings.get('cleanIPs')?.replaceAll(' ', '') : currentSettings ? currentSettings.cleanIPs : '',
-        enableIPv6: newSettings ? newSettings.get('enableIPv6') : currentSettings ? currentSettings.enableIPv6 : true,
-        proxyIP: newSettings ? newSettings.get('proxyIP')?.trim() : currentSettings ? currentSettings.proxyIP : '',
-        ports: newSettings ? newSettings.getAll('ports[]') : currentSettings ? currentSettings.ports : ['443'],
-        vlessConfigs: newSettings ? newSettings.get('vlessConfigs') : currentSettings ? currentSettings.vlessConfigs : true,
-        trojanConfigs: newSettings ? newSettings.get('trojanConfigs') : currentSettings ? currentSettings.trojanConfigs : false,
-        outProxy: newSettings ? chainProxy : currentSettings ? currentSettings.outProxy : '',
-        outProxyParams: chainProxy ? extractChainProxyParams(chainProxy) : currentSettings ? currentSettings.outProxyParams : '',
-        wowEndpoint: newSettings ? newSettings.get('wowEndpoint')?.replaceAll(' ', '') : currentSettings ? currentSettings.wowEndpoint : 'engage.cloudflareclient.com:2408',
-        warpEndpoints: newSettings ? newSettings.get('warpEndpoints')?.replaceAll(' ', '') : currentSettings ? currentSettings.warpEndpoints : 'engage.cloudflareclient.com:2408',
-        hiddifyNoiseMode: newSettings ? newSettings.get('hiddifyNoiseMode') : currentSettings ? currentSettings.hiddifyNoiseMode : 'm4',
-        nikaNGNoiseMode: newSettings ? newSettings.get('nikaNGNoiseMode') : currentSettings ? currentSettings.nikaNGNoiseMode : 'quic',
-        noiseCountMin: newSettings ? newSettings.get('noiseCountMin') : currentSettings ? currentSettings.noiseCountMin : '10',
-        noiseCountMax: newSettings ? newSettings.get('noiseCountMax') : currentSettings ? currentSettings.noiseCountMax : '15',
-        noiseSizeMin: newSettings ? newSettings.get('noiseSizeMin') : currentSettings ? currentSettings.noiseSizeMin : '5',
-        noiseSizeMax: newSettings ? newSettings.get('noiseSizeMax') : currentSettings ? currentSettings.noiseSizeMax : '10',
-        noiseDelayMin: newSettings ? newSettings.get('noiseDelayMin') : currentSettings ? currentSettings.noiseDelayMin : '1',
-        noiseDelayMax: newSettings ? newSettings.get('noiseDelayMax') : currentSettings ? currentSettings.noiseDelayMax : '1',
-        warpPlusLicense: newSettings ? newSettings.get('warpPlusLicense') : currentSettings ? currentSettings.warpPlusLicense : '',
-        customCdnAddrs: newSettings ? newSettings.get('customCdnAddrs')?.replaceAll(' ', '') : currentSettings ? currentSettings.customCdnAddrs : '',
-        customCdnHost: newSettings ? newSettings.get('customCdnHost')?.trim() : currentSettings ? currentSettings.customCdnHost : '',
-        customCdnSni: newSettings ? newSettings.get('customCdnSni')?.trim() : currentSettings ? currentSettings.customCdnSni : '',
-        bestVLESSTrojanInterval: newSettings ? newSettings.get('bestVLESSTrojanInterval') : currentSettings ? currentSettings.bestVLESSTrojanInterval : '30',
-        bestWarpInterval: newSettings ? newSettings.get('bestWarpInterval') : currentSettings ? currentSettings.bestWarpInterval : '30',
+        remoteDNS: (Settings ? Settings.get('remoteDNS') : currentProxySettings?.remoteDNS) || 'https://dns.google/dns-query',
+        localDNS: (Settings ? Settings.get('localDNS') : currentProxySettings?.localDNS) || '8.8.8.8',
+        lengthMin: (Settings ? Settings.get('fragmentLengthMin') : currentProxySettings?.lengthMin) || '100',
+        lengthMax: (Settings ? Settings.get('fragmentLengthMax') : currentProxySettings?.lengthMax) || '200',
+        intervalMin: (Settings ? Settings.get('fragmentIntervalMin') : currentProxySettings?.intervalMin) || '1',
+        intervalMax: (Settings ? Settings.get('fragmentIntervalMax') : currentProxySettings?.intervalMax) || '1',
+        fragmentPackets: (Settings ? Settings.get('fragmentPackets') : currentProxySettings?.fragmentPackets) || 'tlshello',
+        blockAds: (Settings ? Settings.get('block-ads') : currentProxySettings?.blockAds) || false,
+        bypassIran: (Settings ? Settings.get('bypass-iran') : currentProxySettings?.bypassIran) || false,
+        blockPorn: (Settings ? Settings.get('block-porn') : currentProxySettings?.blockPorn) || false,
+        bypassLAN: (Settings ? Settings.get('bypass-lan') : currentProxySettings?.bypassLAN) || false,
+        bypassChina: (Settings ? Settings.get('bypass-china') : currentProxySettings?.bypassChina) || false,
+        blockUDP443: (Settings ? Settings.get('block-udp-443') : currentProxySettings?.blockUDP443) || false,
+        cleanIPs: (Settings ? Settings.get('cleanIPs')?.replaceAll(' ', '') : currentProxySettings?.cleanIPs) || '',
+        proxyIP: (Settings ? Settings.get('proxyIP')?.trim() : currentProxySettings?.proxyIP) || '',
+        ports: (Settings ? Settings.getAll('ports[]') : currentProxySettings?.ports) || ['443'],
+        vlessConfigs: (Settings ? Settings.get('vlessConfigs') : currentProxySettings?.vlessConfigs) || true,
+        trojanConfigs: (Settings ? Settings.get('trojanConfigs') : currentProxySettings?.trojanConfigs) || false,
+        outProxy: (Settings ? chainProxy : currentProxySettings?.outProxy) || '',
+        outProxyParams: (chainProxy ? extractChainProxyParams(chainProxy) : currentProxySettings?.outProxyParams) || '',
+        wowEndpoint: (Settings ? Settings.get('wowEndpoint')?.replaceAll(' ', '') : currentProxySettings?.wowEndpoint) || 'engage.cloudflareclient.com:2408',
+        warpEndpoints: (Settings ? Settings.get('warpEndpoints')?.replaceAll(' ', '') : currentProxySettings?.warpEndpoints) || 'engage.cloudflareclient.com:2408',
+        hiddifyNoiseMode: (Settings ? Settings.get('hiddifyNoiseMode') : currentProxySettings?.hiddifyNoiseMode) || 'm4',
+        nikaNGNoiseMode: (Settings ? Settings.get('nikaNGNoiseMode') : currentProxySettings?.nikaNGNoiseMode) || 'quic',
+        noiseCountMin: (Settings ? Settings.get('noiseCountMin') : currentProxySettings?.noiseCountMin) || '10',
+        noiseCountMax: (Settings ? Settings.get('noiseCountMax') : currentProxySettings?.noiseCountMax) || '15',
+        noiseSizeMin: (Settings ? Settings.get('noiseSizeMin') : currentProxySettings?.noiseSizeMin) || '5',
+        noiseSizeMax: (Settings ? Settings.get('noiseSizeMax') : currentProxySettings?.noiseSizeMax) || '10',
+        noiseDelayMin: (Settings ? Settings.get('noiseDelayMin') : currentProxySettings?.noiseDelayMin) || '1',
+        noiseDelayMax: (Settings ? Settings.get('noiseDelayMax') : currentProxySettings?.noiseDelayMax) || '1',
+        warpPlusLicense: (Settings ? Settings.get('warpPlusLicense') : currentProxySettings?.warpPlusLicense) || '',
+        customCdnAddrs: (Settings ? Settings.get('customCdnAddrs')?.replaceAll(' ', '') : currentProxySettings?.customCdnAddrs) || '',
+        customCdnHost: (Settings ? Settings.get('customCdnHost')?.trim() : currentProxySettings?.customCdnHost) || '',
+        customCdnSni: (Settings ? Settings.get('customCdnSni')?.trim() : currentProxySettings?.customCdnSni) || '',
+        bestVLESSTrojanInterval: (Settings ? Settings.get('bestVLESSTrojanInterval') : currentProxySettings?.bestVLESSTrojanInterval) || '30',
+        bestWarpInterval: (Settings ? Settings.get('bestWarpInterval') : currentProxySettings?.bestWarpInterval) || '30',
         panelVersion: panelVersion
     };
 
@@ -1300,14 +1300,13 @@ async function resolveDNS (domain) {
     }
 }
 
-async function getConfigAddresses(hostName, cleanIPs, enableIPv6) {
+async function getConfigAddresses(hostName, cleanIPs) {
     const resolved = await resolveDNS(hostName);
-    const defaultIPv6 = enableIPv6 ? resolved.ipv6.map((ip) => `[${ip}]`) : []
     return [
         hostName,
         'www.speedtest.net',
         ...resolved.ipv4,
-        ...defaultIPv6,
+        ...resolved.ipv6.map((ip) => `[${ip}]`),
         ...(cleanIPs ? cleanIPs.split(',') : [])
     ];
 }
@@ -1418,8 +1417,7 @@ async function renderHomePage (env, hostName, fragConfigs) {
         customCdnHost,
         customCdnSni,
         bestVLESSTrojanInterval,
-        bestWarpInterval,
-        enableIPv6
+        bestWarpInterval
     } = proxySettings;
 
     const isWarpReady = warpConfigs ? true : false;
@@ -1453,7 +1451,6 @@ async function renderHomePage (env, hostName, fragConfigs) {
         <title>BPB Panel ${panelVersion}</title>
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
-        <title>Collapsible Sections</title>
 		<style>
 			body { font-family: system-ui; }
             .material-symbols-outlined {
@@ -1464,15 +1461,6 @@ async function renderHomePage (env, hostName, fragConfigs) {
                 'GRAD' 0,
                 'opsz' 24
             }
-            details { margin-bottom: 10px; }
-            summary {
-                font-weight: bold;
-                cursor: pointer;
-                text-align: center;
-                text-wrap: nowrap;
-            }
-            summary::marker { font-size: 1.5rem; color: #09639f; }
-            summary h2 { display: inline-flex; }
             h1 { font-size: 2.5em; text-align: center; color: #09639f; text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.25); }
 			h2 { margin: 30px 0; text-align: center; color: #3b3b3b; }
 			hr { border: 1px solid #ddd; margin: 20px 0; }
@@ -1680,236 +1668,217 @@ async function renderHomePage (env, hostName, fragConfigs) {
 		<h1>BPB Panel <span style="font-size: smaller;">${panelVersion}</span> 💦</h1>
 		<div class="form-container">
             <form id="configForm">
-                <details open>
-                    <summary><h2>VLESS / TROJAN ⚙️</h2></summary>
-                    <div class="form-control">
-                        <label for="remoteDNS">🌏 Remote DNS</label>
-                        <input type="url" id="remoteDNS" name="remoteDNS" value="${remoteDNS}" required>
-                    </div>
-                    <div class="form-control">
-                        <label for="localDNS">🏚️ Local DNS</label>
-                        <input type="text" id="localDNS" name="localDNS" value="${localDNS}"
-                            pattern="^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|localhost$"
-                            title="Please enter a valid DNS IP Address or localhost!"  required>
-                    </div>
-                    <div class="form-control">
-                        <label for="proxyIP">📍 Proxy IP</label>
-                        <input type="text" id="proxyIP" name="proxyIP" value="${proxyIP}">
-                    </div>
-                    <div class="form-control">
-                        <label for="outProxy">✈️ Chain Proxy</label>
-                        <input type="text" id="outProxy" name="outProxy" value="${outProxy}">
-                    </div>
-                    <div class="form-control">
-                        <label for="cleanIPs">✨ Clean IPs</label>
-                        <input type="text" id="cleanIPs" name="cleanIPs" value="${cleanIPs.replaceAll(",", " , ")}">
-                    </div>
-                    <div class="form-control">
-                        <label>🔎 IP Scanner</label>
-                        <a href="https://scanner.github1.cloud/" id="scanner" name="scanner" target="_blank">
-                            <button type="button" class="button">
-                                Scan now
-                                <span class="material-symbols-outlined" style="margin-left: 5px;">open_in_new</span>
-                            </button>
-                        </a>
-                    </div>
-                    <div class="form-control">
-                        <label for="enableIPv6">🔛 IPv6 Configs</label>
-                        <div class="input-with-select">
-                            <select id="enableIPv6" name="enableIPv6">
-                                <option value="true" ${enableIPv6 ? 'selected' : ''}>Enabled</option>
-                                <option value="" ${!enableIPv6 ? 'selected' : ''}>Disabled</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="form-control">
-                        <label for="customCdnAddrs">💀 Custom Addr</label>
-                        <input type="text" id="customCdnAddrs" name="customCdnAddrs" value="${customCdnAddrs.replaceAll(",", " , ")}">
-                    </div>
-                    <div class="form-control">
-                        <label for="customCdnHost">💀 Custom Host</label> 
-                        <input type="text" id="customCdnHost" name="customCdnHost" value="${customCdnHost}">
-                    </div>
-                    <div class="form-control">
-                        <label for="customCdnSni">💀 Custom SNI</label>
-                        <input type="text" id="customCdnSni" name="customCdnSni" value="${customCdnSni}">
-                    </div>
-                    <div class="form-control">
-                        <label for="bestVLESSTrojanInterval">🔄 Best Interval</label>
-                        <input type="number" id="bestVLESSTrojanInterval" name="bestVLESSTrojanInterval" min="10" max="90" value="${bestVLESSTrojanInterval}">
-                    </div>
-                    <div class="form-control" style="padding-top: 10px;">
-                        <label>⚙️ Protocols</label>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; align-items: baseline; margin-top: 10px;">
-                            <div style = "display: flex; justify-content: center; align-items: center;">
-                                <input type="checkbox" id="vlessConfigs" name="vlessConfigs" onchange="handleProtocolChange(event)" style="margin: 0; grid-column: 2;" value="true" ${vlessConfigs ? 'checked' : ''}>
-                                <label for="vlessConfigs" style="margin: 0 5px; font-weight: normal; font-size: unset;">VLESS</label>
-                            </div>
-                            <div style = "display: flex; justify-content: center; align-items: center;">
-                                <input type="checkbox" id="trojanConfigs" name="trojanConfigs" onchange="handleProtocolChange(event)" style="margin: 0; grid-column: 2;" value="true" ${trojanConfigs ? 'checked' : ''}>
-                                <label for="trojanConfigs" style="margin: 0 5px; font-weight: normal; font-size: unset;">Trojan</label>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="table-container">
-                        <table id="frag-sub-table">
-                            <tr>
-                                <th style="text-wrap: nowrap; background-color: gray;">Config type</th>
-                                <th style="text-wrap: nowrap; background-color: gray;">Ports</th>
-                            </tr>
-                            <tr>
-                                <td style="text-align: center; font-size: larger;"><b>TLS</b></td>
-                                <td style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr;">${(await buildPortsBlock()).httpsPortsBlock}</td>    
-                            </tr>
-                            ${hostName.includes('pages.dev') ? '' : `<tr>
-                                <td style="text-align: center; font-size: larger;"><b>Non TLS</b></td>
-                                <td style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr;">${(await buildPortsBlock()).httpPortsBlock}</td>    
-                            </tr>`}        
-                        </table>
-                    </div>
-                </details>
-                <details>
-                    <summary><h2>FRAGMENT ⚙️</h2></summary>	
-                    <div class="form-control">
-                        <label for="fragmentLengthMin">📐 Length</label>
-                        <div style="display: grid; grid-template-columns: 1fr auto 1fr; align-items: baseline;">
-                            <input type="number" id="fragmentLengthMin" name="fragmentLengthMin" value="${lengthMin}" min="10" required>
-                            <span style="text-align: center; white-space: pre;"> - </span>
-                            <input type="number" id="fragmentLengthMax" name="fragmentLengthMax" value="${lengthMax}" max="500" required>
-                        </div>
-                    </div>
-                    <div class="form-control">
-                        <label for="fragmentIntervalMin">🕞 Interval</label>
-                        <div style="display: grid; grid-template-columns: 1fr auto 1fr; align-items: baseline;">
-                            <input type="number" id="fragmentIntervalMin" name="fragmentIntervalMin"
-                                value="${intervalMin}" min="1" max="30" required>
-                            <span style="text-align: center; white-space: pre;"> - </span>
-                            <input type="number" id="fragmentIntervalMax" name="fragmentIntervalMax"
-                                value="${intervalMax}" min="1" max="30" required>
-                        </div>
-                    </div>
-                    <div class="form-control">
-                        <label for="fragmentPackets">📦 Packets</label>
-                        <div class="input-with-select">
-                            <select id="fragmentPackets" name="fragmentPackets">
-                                <option value="tlshello" ${fragmentPackets === 'tlshello' ? 'selected' : ''}>tlshello</option>
-                                <option value="1-1" ${fragmentPackets === '1-1' ? 'selected' : ''}>1-1</option>
-                                <option value="1-2" ${fragmentPackets === '1-2' ? 'selected' : ''}>1-2</option>
-                                <option value="1-3" ${fragmentPackets === '1-3' ? 'selected' : ''}>1-3</option>
-                                <option value="1-5" ${fragmentPackets === '1-5' ? 'selected' : ''}>1-5</option>
-                            </select>
-                        </div>
-                    </div>
-                </details>
-                <details>
-                    <summary><h2>ROUTING ⚙️</h2></summary>
-                    <div class="form-control" style="margin-bottom: 20px;">			
-                        <div class="routing">
-                            <input type="checkbox" id="block-ads" name="block-ads" style="margin: 0; grid-column: 2;" value="true" ${blockAds ? 'checked' : ''}>
-                            <label for="block-ads">Block Ads.</label>
-                        </div>
-                        <div class="routing">
-                            <input type="checkbox" id="bypass-iran" name="bypass-iran" style="margin: 0; grid-column: 2;" value="true" ${bypassIran ? 'checked' : ''}>
-                            <label for="bypass-iran">Bypass Iran</label>
-                        </div>
-                        <div class="routing">
-                            <input type="checkbox" id="block-porn" name="block-porn" style="margin: 0; grid-column: 2;" value="true" ${blockPorn ? 'checked' : ''}>
-                            <label for="block-porn">Block Porn</label>
-                        </div>
-                        <div class="routing">
-                            <input type="checkbox" id="bypass-lan" name="bypass-lan" style="margin: 0; grid-column: 2;" value="true" ${bypassLAN ? 'checked' : ''}>
-                            <label for="bypass-lan">Bypass LAN</label>
-                        </div>
-                        <div class="routing">
-                            <input type="checkbox" id="bypass-china" name="bypass-china" style="margin: 0; grid-column: 2;" value="true" ${bypassChina ? 'checked' : ''}>
-                            <label for="bypass-china">Bypass China</label>
-                        </div>
-                        <div class="routing">
-                            <input type="checkbox" id="block-udp-443" name="block-udp-443" style="margin: 0; grid-column: 2;" value="true" ${blockUDP443 ? 'checked' : ''}>
-                            <label for="block-udp-443">Block QUIC</label>
-                        </div>
-                    </div>
-                </details>
-                <details>
-                    <summary><h2>WARP ⚙️</h2></summary>
-                    <div class="form-control">
-                        <label for="wowEndpoint">✨ WoW Endpoints</label>
-                        <input type="text" id="wowEndpoint" name="wowEndpoint" value="${wowEndpoint.replaceAll(",", " , ")}" required>
-                    </div>
-                    <div class="form-control">
-                        <label for="warpEndpoints">✨ Warp Endpoints</label>
-                        <input type="text" id="warpEndpoints" name="warpEndpoints" value="${warpEndpoints.replaceAll(",", " , ")}" required>
-                    </div>
-                    <div class="form-control">
-                        <label for="warpPlusLicense">➕ Warp+ License</label>
-                        <input type="text" id="warpPlusLicense" name="warpPlusLicense" value="${warpPlusLicense}" 
-                            pattern="^[a-zA-Z0-9]{8}-[a-zA-Z0-9]{8}-[a-zA-Z0-9]{8}$" 
-                            title="Please enter a valid Warp Plus license in xxxxxxxx-xxxxxxxx-xxxxxxxx format">
-                    </div>
-                    <div class="form-control">
-                        <label>♻️ Warp Configs</label>
-                        <button id="refreshBtn" type="button" class="button" style="padding: 10px 0;" onclick="getWarpConfigs()">
-                            Update<span class="material-symbols-outlined">autorenew</span>
+                <h2>VLESS/TROJAN SETTINGS ⚙️</h2>
+				<div class="form-control">
+					<label for="remoteDNS">🌏 Remote DNS</label>
+					<input type="url" id="remoteDNS" name="remoteDNS" value="${remoteDNS}" required>
+				</div>
+				<div class="form-control">
+					<label for="localDNS">🏚️ Local DNS</label>
+					<input type="text" id="localDNS" name="localDNS" value="${localDNS}"
+						pattern="^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|localhost$"
+						title="Please enter a valid DNS IP Address or localhost!"  required>
+				</div>
+				<div class="form-control">
+					<label for="proxyIP">📍 Proxy IP</label>
+					<input type="text" id="proxyIP" name="proxyIP" value="${proxyIP}">
+				</div>
+                <div class="form-control">
+					<label for="outProxy">✈️ Chain Proxy</label>
+					<input type="text" id="outProxy" name="outProxy" value="${outProxy}">
+				</div>
+				<div class="form-control">
+					<label for="cleanIPs">✨ Clean IPs</label>
+					<input type="text" id="cleanIPs" name="cleanIPs" value="${cleanIPs.replaceAll(",", " , ")}">
+				</div>
+                <div class="form-control">
+                    <label>🔎 IP Scanner</label>
+                    <a href="https://scanner.github1.cloud/" id="scanner" name="scanner" target="_blank">
+                        <button type="button" class="button">
+                            Scan now
+                            <span class="material-symbols-outlined" style="margin-left: 5px;">open_in_new</span>
                         </button>
-                    </div>
-                    <div class="form-control">
-                        <label style="line-height: 1.5;">🔎 Scan Endpoint</label>
-                        <button type="button" class="button" style="padding: 10px 0;" onclick="copyToClipboard('bash <(curl -fsSL https://raw.githubusercontent.com/Ptechgithub/warp/main/endip/install.sh)', false)">
-                            Copy Script<span class="material-symbols-outlined">terminal</span>
-                        </button>
-                    </div>
-                    <div class="form-control">
-                        <label for="bestWarpInterval">🔄 Best Interval</label>
-                        <input type="number" id="bestWarpInterval" name="bestWarpInterval" min="10" max="90" value="${bestWarpInterval}">
-                    </div>
-                </details>
-                <details>
-                    <summary><h2>WARP PRO ⚙️</h2></summary>
-                    <div class="form-control">
-                        <label for="hiddifyNoiseMode">😵‍💫 Hiddify Mode</label>
-                        <input type="text" id="hiddifyNoiseMode" name="hiddifyNoiseMode" 
-                            pattern="^(m[1-6]|h_[0-9A-Fa-f]{2}|g_([0-9A-Fa-f]{2}_){2}[0-9A-Fa-f]{2})$" 
-                            title="Enter 'm1-m6', 'h_HEX', 'g_HEX_HEX_HEX' which HEX can be between 00 to ff"
-                            value="${hiddifyNoiseMode}" required>
-                    </div>
-                    <div class="form-control">
-                        <label for="nikaNGNoiseMode">😵‍💫 NikaNG Mode</label>
-                        <input type="text" id="nikaNGNoiseMode" name="nikaNGNoiseMode" 
-                            pattern="^(none|quic|random|[0-9A-Fa-f]+)$" 
-                            title="Enter 'none', 'quic', 'random', or any HEX string like 'ee0000000108aaaa'"
-                            value="${nikaNGNoiseMode}" required>
-                    </div>
-                    <div class="form-control">
-                        <label for="noiseCountMin">🎚️ Noise Count</label>
-                        <div style="display: grid; grid-template-columns: 1fr auto 1fr; align-items: baseline;">
-                            <input type="number" id="noiseCountMin" name="noiseCountMin"
-                                value="${noiseCountMin}" min="1" required>
-                            <span style="text-align: center; white-space: pre;"> - </span>
-                            <input type="number" id="noiseCountMax" name="noiseCountMax"
-                                value="${noiseCountMax}" min="1" required>
+                    </a>
+                </div>
+                <div class="form-control">
+					<label for="customCdnAddrs">💀 Custom Addr</label>
+					<input type="text" id="customCdnAddrs" name="customCdnAddrs" value="${customCdnAddrs.replaceAll(",", " , ")}">
+				</div>
+                <div class="form-control">
+					<label for="customCdnHost">💀 Custom Host</label> 
+					<input type="text" id="customCdnHost" name="customCdnHost" value="${customCdnHost}">
+				</div>
+                <div class="form-control">
+					<label for="customCdnSni">💀 Custom SNI</label>
+					<input type="text" id="customCdnSni" name="customCdnSni" value="${customCdnSni}">
+				</div>
+                <div class="form-control">
+					<label for="bestVLESSTrojanInterval">🔄 Best Interval</label>
+					<input type="number" id="bestVLESSTrojanInterval" name="bestVLESSTrojanInterval" min="10" max="90" value="${bestVLESSTrojanInterval}">
+				</div>
+                <div class="form-control" style="padding-top: 10px;">
+					<label>⚙️ Protocols</label>
+					<div style="display: grid; grid-template-columns: 1fr 1fr; align-items: baseline; margin-top: 10px;">
+                        <div style = "display: flex; justify-content: center; align-items: center;">
+                            <input type="checkbox" id="vlessConfigs" name="vlessConfigs" onchange="handleProtocolChange(event)" style="margin: 0; grid-column: 2;" value="true" ${vlessConfigs ? 'checked' : ''}>
+                            <label for="vlessConfigs" style="margin: 0 5px; font-weight: normal; font-size: unset;">VLESS</label>
                         </div>
-                    </div>
-                    <div class="form-control">
-                        <label for="noiseSizeMin">📏 Noise Size</label>
-                        <div style="display: grid; grid-template-columns: 1fr auto 1fr; align-items: baseline;">
-                            <input type="number" id="noiseSizeMin" name="noiseSizeMin"
-                                value="${noiseSizeMin}" min="1" required>
-                            <span style="text-align: center; white-space: pre;"> - </span>
-                            <input type="number" id="noiseSizeMax" name="noiseSizeMax"
-                                value="${noiseSizeMax}" min="1" required>
+                        <div style = "display: flex; justify-content: center; align-items: center;">
+                            <input type="checkbox" id="trojanConfigs" name="trojanConfigs" onchange="handleProtocolChange(event)" style="margin: 0; grid-column: 2;" value="true" ${trojanConfigs ? 'checked' : ''}>
+                            <label for="trojanConfigs" style="margin: 0 5px; font-weight: normal; font-size: unset;">Trojan</label>
                         </div>
+					</div>
+				</div>
+                <div class="table-container">
+                    <table id="frag-sub-table">
+                        <tr>
+                            <th style="text-wrap: nowrap; background-color: gray;">Config type</th>
+                            <th style="text-wrap: nowrap; background-color: gray;">Ports</th>
+                        </tr>
+                        <tr>
+                            <td style="text-align: center; font-size: larger;"><b>TLS</b></td>
+                            <td style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr;">${(await buildPortsBlock()).httpsPortsBlock}</td>    
+                        </tr>
+                        ${hostName.includes('pages.dev') ? '' : `<tr>
+                            <td style="text-align: center; font-size: larger;"><b>Non TLS</b></td>
+                            <td style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr;">${(await buildPortsBlock()).httpPortsBlock}</td>    
+                        </tr>`}        
+                    </table>
+                </div>
+                <h2>FRAGMENT SETTINGS ⚙️</h2>	
+				<div class="form-control">
+					<label for="fragmentLengthMin">📐 Length</label>
+					<div style="display: grid; grid-template-columns: 1fr auto 1fr; align-items: baseline;">
+						<input type="number" id="fragmentLengthMin" name="fragmentLengthMin" value="${lengthMin}" min="10" required>
+						<span style="text-align: center; white-space: pre;"> - </span>
+						<input type="number" id="fragmentLengthMax" name="fragmentLengthMax" value="${lengthMax}" max="500" required>
+					</div>
+				</div>
+				<div class="form-control">
+					<label for="fragmentIntervalMin">🕞 Interval</label>
+					<div style="display: grid; grid-template-columns: 1fr auto 1fr; align-items: baseline;">
+						<input type="number" id="fragmentIntervalMin" name="fragmentIntervalMin"
+    						value="${intervalMin}" max="30" required>
+						<span style="text-align: center; white-space: pre;"> - </span>
+						<input type="number" id="fragmentIntervalMax" name="fragmentIntervalMax"
+    						value="${intervalMax}" max="30" required>
+					</div>
+				</div>
+                <div class="form-control">
+                    <label for="fragmentPackets">📦 Packets</label>
+                    <div class="input-with-select">
+                        <select id="fragmentPackets" name="fragmentPackets">
+                            <option value="tlshello" ${fragmentPackets === 'tlshello' ? 'selected' : ''}>tlshello</option>
+                            <option value="1-1" ${fragmentPackets === '1-1' ? 'selected' : ''}>1-1</option>
+                            <option value="1-2" ${fragmentPackets === '1-2' ? 'selected' : ''}>1-2</option>
+                            <option value="1-3" ${fragmentPackets === '1-3' ? 'selected' : ''}>1-3</option>
+                            <option value="1-5" ${fragmentPackets === '1-5' ? 'selected' : ''}>1-5</option>
+                        </select>
                     </div>
-                    <div class="form-control">
-                        <label for="noiseDelayMin">🕞 Noise Delay</label>
-                        <div style="display: grid; grid-template-columns: 1fr auto 1fr; align-items: baseline;">
-                            <input type="number" id="noiseDelayMin" name="noiseDelayMin"
-                                value="${noiseDelayMin}" min="1" required>
-                            <span style="text-align: center; white-space: pre;"> - </span>
-                            <input type="number" id="noiseDelayMax" name="noiseDelayMax"
-                                value="${noiseDelayMax}" min="1" required>
-                        </div>
+                </div>
+                <h2>ROUTING ⚙️</h2>
+				<div class="form-control" style="margin-bottom: 20px;">			
+                    <div class="routing">
+                        <input type="checkbox" id="block-ads" name="block-ads" style="margin: 0; grid-column: 2;" value="true" ${blockAds ? 'checked' : ''}>
+                        <label for="block-ads">Block Ads.</label>
                     </div>
-                </details>
+                    <div class="routing">
+						<input type="checkbox" id="bypass-iran" name="bypass-iran" style="margin: 0; grid-column: 2;" value="true" ${bypassIran ? 'checked' : ''}>
+                        <label for="bypass-iran">Bypass Iran</label>
+					</div>
+                    <div class="routing">
+						<input type="checkbox" id="block-porn" name="block-porn" style="margin: 0; grid-column: 2;" value="true" ${blockPorn ? 'checked' : ''}>
+                        <label for="block-porn">Block Porn</label>
+					</div>
+                    <div class="routing">
+						<input type="checkbox" id="bypass-lan" name="bypass-lan" style="margin: 0; grid-column: 2;" value="true" ${bypassLAN ? 'checked' : ''}>
+                        <label for="bypass-lan">Bypass LAN</label>
+					</div>
+                    <div class="routing">
+						<input type="checkbox" id="bypass-china" name="bypass-china" style="margin: 0; grid-column: 2;" value="true" ${bypassChina ? 'checked' : ''}>
+                        <label for="bypass-china">Bypass China</label>
+					</div>
+                    <div class="routing">
+						<input type="checkbox" id="block-udp-443" name="block-udp-443" style="margin: 0; grid-column: 2;" value="true" ${blockUDP443 ? 'checked' : ''}>
+                        <label for="block-udp-443">Block QUIC</label>
+					</div>
+				</div>
+                <h2>WARP SETTINGS ⚙️</h2>
+				<div class="form-control">
+                    <label for="wowEndpoint">✨ WoW Endpoints</label>
+                    <input type="text" id="wowEndpoint" name="wowEndpoint" value="${wowEndpoint.replaceAll(",", " , ")}" required>
+				</div>
+				<div class="form-control">
+                    <label for="warpEndpoints">✨ Warp Endpoints</label>
+                    <input type="text" id="warpEndpoints" name="warpEndpoints" value="${warpEndpoints.replaceAll(",", " , ")}" required>
+				</div>
+				<div class="form-control">
+                    <label for="warpPlusLicense">➕ Warp+ License</label>
+                    <input type="text" id="warpPlusLicense" name="warpPlusLicense" value="${warpPlusLicense}" 
+                        pattern="^[a-zA-Z0-9]{8}-[a-zA-Z0-9]{8}-[a-zA-Z0-9]{8}$" 
+                        title="Please enter a valid Warp Plus license in xxxxxxxx-xxxxxxxx-xxxxxxxx format">
+				</div>
+                <div class="form-control">
+                    <label>♻️ Warp Configs</label>
+                    <button id="refreshBtn" type="button" class="button" style="padding: 10px 0;" onclick="getWarpConfigs()">
+                        Update<span class="material-symbols-outlined">autorenew</span>
+                    </button>
+                </div>
+                <div class="form-control">
+                    <label style="line-height: 1.5;">🔎 Scan Endpoint</label>
+                    <button type="button" class="button" style="padding: 10px 0;" onclick="copyToClipboard('bash <(curl -fsSL https://raw.githubusercontent.com/Ptechgithub/warp/main/endip/install.sh)', false)">
+                        Copy Script<span class="material-symbols-outlined">terminal</span>
+                    </button>
+                </div>
+                <div class="form-control">
+					<label for="bestWarpInterval">🔄 Best Interval</label>
+					<input type="number" id="bestWarpInterval" name="bestWarpInterval" min="10" max="90" value="${bestWarpInterval}">
+				</div>
+                <h2>WARP PRO SETTINGS ⚙️</h2>
+                <div class="form-control">
+					<label for="hiddifyNoiseMode">😵‍💫 Hiddify Mode</label>
+					<input type="text" id="hiddifyNoiseMode" name="hiddifyNoiseMode" 
+                        pattern="^(m[1-6]|h_[0-9A-Fa-f]{2}|g_([0-9A-Fa-f]{2}_){2}[0-9A-Fa-f]{2})$" 
+                        title="Enter 'm1-m6', 'h_HEX', 'g_HEX_HEX_HEX' which HEX can be between 00 to ff"
+                        value="${hiddifyNoiseMode}" required>
+				</div>
+                <div class="form-control">
+					<label for="nikaNGNoiseMode">😵‍💫 NikaNG Mode</label>
+					<input type="text" id="nikaNGNoiseMode" name="nikaNGNoiseMode" 
+                        pattern="^(none|quic|random|[0-9A-Fa-f]+)$" 
+                        title="Enter 'none', 'quic', 'random', or any HEX string like 'ee0000000108aaaa'"
+                        value="${nikaNGNoiseMode}" required>
+				</div>
+                <div class="form-control">
+					<label for="noiseCountMin">🎚️ Noise Count</label>
+					<div style="display: grid; grid-template-columns: 1fr auto 1fr; align-items: baseline;">
+						<input type="number" id="noiseCountMin" name="noiseCountMin"
+    						value="${noiseCountMin}" required>
+						<span style="text-align: center; white-space: pre;"> - </span>
+						<input type="number" id="noiseCountMax" name="noiseCountMax"
+    						value="${noiseCountMax}" required>
+					</div>
+				</div>
+                <div class="form-control">
+					<label for="noiseSizeMin">📏 Noise Size</label>
+					<div style="display: grid; grid-template-columns: 1fr auto 1fr; align-items: baseline;">
+						<input type="number" id="noiseSizeMin" name="noiseSizeMin"
+    						value="${noiseSizeMin}" required>
+						<span style="text-align: center; white-space: pre;"> - </span>
+						<input type="number" id="noiseSizeMax" name="noiseSizeMax"
+    						value="${noiseSizeMax}" required>
+					</div>
+				</div>
+                <div class="form-control">
+					<label for="noiseDelayMin">🕞 Noise Delay</label>
+					<div style="display: grid; grid-template-columns: 1fr auto 1fr; align-items: baseline;">
+						<input type="number" id="noiseDelayMin" name="noiseDelayMin"
+    						value="${noiseDelayMin}" required>
+						<span style="text-align: center; white-space: pre;"> - </span>
+						<input type="number" id="noiseDelayMax" name="noiseDelayMax"
+    						value="${noiseDelayMax}" required>
+					</div>
+				</div>
 				<div id="apply" class="form-control">
 					<div style="grid-column: 2; width: 100%; display: inline-flex;">
 						<input type="submit" id="applyButton" style="margin-right: 10px;" class="button disabled" value="APPLY SETTINGS 💥" form="configForm">
@@ -2830,6 +2799,7 @@ function renderErrorPage (message, error, refer) {
     return `
     <!DOCTYPE html>
     <html lang="en">
+
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -2848,6 +2818,7 @@ function renderErrorPage (message, error, refer) {
             #error-container { text-align: center; }
         </style>
     </head>
+
     <body>
         <div id="error-container">
             <h1>BPB Panel <span style="font-size: smaller;">${panelVersion}</span> 💦</h1>
@@ -2856,10 +2827,11 @@ function renderErrorPage (message, error, refer) {
                     ? 'Please try again or refer to <a href="https://github.com/bia-pain-bache/BPB-Worker-Panel/blob/main/README.md">documents</a>' 
                     : ''}
                 </h2>
-                <p><b>${error ? `⚠️ ${error.stack.toString()}` : ''}</b></p>
+                <p><b>${error ? `⚠️ ${error}` : ''}</b></p>
             </div>
         </div>
     </body>
+
     </html>`;
 }
 
@@ -3156,7 +3128,6 @@ async function buildXrayDNSObject (remoteDNS, localDNS, blockAds, bypassIran, by
 }
 
 function buildXrayRoutingRules (localDNS, blockAds, bypassIran, blockPorn, bypassLAN, bypassChina, blockUDP443, isChain, isBalancer, isWorkerLess, isWarp) {
-    const isBypass = bypassIran || bypassLAN || bypassChina;
     let rules = [
         {
             inboundTag: [
@@ -3173,17 +3144,16 @@ function buildXrayRoutingRules (localDNS, blockAds, bypassIran, blockPorn, bypas
             port: "53",
             outboundTag: "dns-out",
             type: "field"
+        },
+        {
+            network: "udp",
+            port: "53",
+            outboundTag: "direct",
+            type: "field"
         }
     ];
 
-    if (isChain || (localDNS !== 'localhost' && isBypass)) rules.push({
-        ip: [localDNS === 'localhost' ? '8.8.8.8' : localDNS],
-        port: "53",
-        outboundTag: "direct",
-        type: "field"
-    });
-
-    if (isBypass) {
+    if (bypassIran || bypassLAN || bypassChina) {
         let ipRule = {
             ip: [],
             outboundTag: "direct",
@@ -3522,7 +3492,7 @@ async function buildWorkerLessConfig(remoteDNS, localDNS, lengthMin,  lengthMax,
     return fragConfig;
 }
 
-async function getXrayFragmentConfigs(env, hostName) {
+async function getFragmentConfigs(env, hostName) {
     let Configs = [];
     let outbounds = [];
     let proxySettings = {};
@@ -3560,8 +3530,7 @@ async function getXrayFragmentConfigs(env, hostName) {
         ports,
         vlessConfigs,
         trojanConfigs,
-        bestVLESSTrojanInterval,
-        enableIPv6
+        bestVLESSTrojanInterval
     } = proxySettings;
 
     if (outProxy) {
@@ -3591,7 +3560,7 @@ async function getXrayFragmentConfigs(env, hostName) {
     delete config.observatory;
     delete config.routing.balancers;
     let protocolNo = (vlessConfigs ? 1 : 0) + (trojanConfigs ? 1 : 0);
-    const Addresses = await getConfigAddresses(hostName, cleanIPs, enableIPv6);
+    const Addresses = await getConfigAddresses(hostName, cleanIPs);
     const domainAddressesRules = Addresses.filter(address => isDomain(address)).map(domain => `full:${domain}`);
     
     for (let i = 0; i < protocolNo; i++) {
@@ -3620,18 +3589,22 @@ async function getXrayFragmentConfigs(env, hostName) {
                     isDomain(addr)
                         ? fragConfig.dns.servers[1].domains.push(`full:${addr}`)
                         : fragConfig.dns.servers.splice(1,1);
-
-                    outbound.tag = `prox_${proxyIndex}`;
+                } else {
+                    fragConfig.outbounds = [{ ...outbound}, ...fragConfig.outbounds];
+                }
+    
+                Configs.push(fragConfig); 
+                outbound.tag = `prox_${proxyIndex}`;
+                
+                if (chainProxy) {
                     let proxyOut = structuredClone(chainProxy);
                     proxyOut.tag = `out_${proxyIndex}`;
                     proxyOut.streamSettings.sockopt.dialerProxy = `prox_${proxyIndex}`;
                     outbounds.push({...proxyOut}, {...outbound});
                 } else {
-                    fragConfig.outbounds = [{ ...outbound}, ...fragConfig.outbounds];
                     outbounds.push({...outbound});
                 }
     
-                Configs.push(fragConfig);
                 proxyIndex++;
             }
         }
@@ -3976,7 +3949,11 @@ function buildClashChainOutbound(chainProxyParams) {
 async function getClashConfig (env, hostName, isWarp) {
     let proxySettings = {};
     let warpConfigs = [];
-    let remark, path;
+    let remark, path, selectorProxies;
+    let outbounds = [];
+    let warpOutboundsRemarks = [];
+    let wowOutboundRemarks = [];
+    let outboundsRemarks = [];
     let chainProxyOutbound;
 
     try {
@@ -4007,19 +3984,19 @@ async function getClashConfig (env, hostName, isWarp) {
         customCdnHost,
         customCdnSni,
         bestVLESSTrojanInterval,
-        bestWarpInterval,
-        enableIPv6
+        bestWarpInterval
     } = proxySettings; 
 
     let config = structuredClone(clashConfigTemp);
     config.dns = await buildClashDNS(isWarp ? '1.1.1.1' : remoteDNS, localDNS, blockAds, bypassIran, blockPorn, bypassLAN, bypassChina);
     config.rules = buildClashRoutingRules(localDNS, blockAds, bypassIran, bypassChina, blockPorn, blockUDP443, bypassLAN, isWarp);
-    const Addresses = await getConfigAddresses(hostName, cleanIPs, enableIPv6);
+    const Addresses = (await getConfigAddresses(hostName, cleanIPs));
     const customCdnAddresses = customCdnAddrs ? customCdnAddrs.split(',') : [];
     const totalAddresses = [...Addresses, ...customCdnAddresses];
 
     if (outProxy && !isWarp) {
-        const proxyParams = JSON.parse(outProxyParams);        
+        const proxyParams = JSON.parse(outProxyParams);
+        
         try {
             chainProxyOutbound = buildClashChainOutbound(proxyParams);
         } catch (error) {
@@ -4034,28 +4011,18 @@ async function getClashConfig (env, hostName, isWarp) {
     }
 
     if (isWarp) {
-        config['proxy-groups'][0].proxies = ['💦 Warp Best Ping 🚀', '💦 WoW Best Ping 🚀'];
-        config['proxy-groups'][1].name = '💦 Warp Best Ping 🚀';
         config['proxy-groups'][1].interval = +bestWarpInterval;
-        config['proxy-groups'].splice(2, 0, structuredClone(config['proxy-groups'][1]));
-        config['proxy-groups'][2].name = '💦 WoW Best Ping 🚀';
         const clashWarpOutbounds = await buildWarpOutbounds(env, 'clash', proxySettings, warpConfigs);
         const clashWOWpOutbounds = await buildWoWOutbounds(env, 'clash', proxySettings, warpConfigs);
-        config.proxies = [...clashWarpOutbounds, ...clashWOWpOutbounds];
+        outbounds.push(...clashWarpOutbounds, ...clashWOWpOutbounds);
         clashWarpOutbounds.forEach(outbound => {
-            config['proxy-groups'][0].proxies.push(outbound["name"]);
-            config['proxy-groups'][1].proxies.push(outbound["name"]);
-
+            warpOutboundsRemarks.push(outbound["name"]);
         });
         
         clashWOWpOutbounds.forEach(outbound => {
-            outbound["name"].includes('WoW') && config['proxy-groups'][0].proxies.push(outbound["name"]);
-            outbound["name"].includes('WoW') && config['proxy-groups'][2].proxies.push(outbound["name"]);
+            outbound["name"].includes('WoW') && wowOutboundRemarks.push(outbound["name"]);
         });
-
     } else {
-        config['proxy-groups'][0].proxies = ['💦 Best Ping 💥'];
-        config['proxy-groups'][1].name = '💦 Best Ping 💥';
         config['proxy-groups'][1].interval = +bestVLESSTrojanInterval;
     }
 
@@ -4068,6 +4035,7 @@ async function getClashConfig (env, hostName, isWarp) {
                 let VLESSOutbound, TrojanOutbound;
                 const isCustomAddr = index > Addresses.length - 1;
                 const configType = isCustomAddr ? 'C' : '';
+                const configIndex = isCustomAddr ? index - Addresses.length + 1 : index;
                 const sni = isCustomAddr ? customCdnSni : hostName;
                 const host = isCustomAddr ? customCdnHost : hostName;
 
@@ -4084,9 +4052,8 @@ async function getClashConfig (env, hostName, isWarp) {
                         sni, 
                         path
                     );
-                    config.proxies.push(VLESSOutbound);
-                    config['proxy-groups'][0].proxies.push(remark);
-                    config['proxy-groups'][1].proxies.push(remark);
+                    outbounds.push(VLESSOutbound);
+                    outboundsRemarks.push(remark);
                 }
                 
                 if (trojanConfigs && !VLESSOutbound && defaultHttpsPorts.includes(port)) {
@@ -4102,22 +4069,39 @@ async function getClashConfig (env, hostName, isWarp) {
                         sni, 
                         path
                     );
-                    config.proxies.push(TrojanOutbound);
-                    config['proxy-groups'][0].proxies.push(remark);
-                    config['proxy-groups'][1].proxies.push(remark);
+                    outbounds.push(TrojanOutbound);
+                    outboundsRemarks.push(remark);
                 }
 
                 if (chainProxyOutbound && (TrojanOutbound || VLESSOutbound)) {
                     let chain = structuredClone(chainProxyOutbound);
                     chain['name'] = remark;
                     chain['dialer-proxy'] = `proxy-${proxyIndex}`;
-                    config.proxies.push(chain);
+                    outbounds.push(chain);
                 }
 
                 proxyIndex++;
             });
         });
     }
+
+
+    config.proxies = outbounds;
+    config['proxy-groups'][0].proxies = isWarp
+        ? ['💦 Warp Best Ping 🚀', '💦 WoW Best Ping 🚀', ...warpOutboundsRemarks, ...wowOutboundRemarks ]
+        : ['💦 Best Ping 💥', ...outboundsRemarks ];
+
+    config['proxy-groups'][1].proxies = isWarp ? warpOutboundsRemarks : outboundsRemarks;
+    config['proxy-groups'][1].name = isWarp ? `💦 Warp Best Ping 🚀`: `💦 Best Ping 💥`,
+
+    isWarp && config["proxy-groups"].push({
+        "name": "💦 WoW Best Ping 🚀",
+        "type": "url-test",
+        "url": "https://www.gstatic.com/generate_204",
+        "interval": +bestWarpInterval,
+        "tolerance": 50,
+        "proxies": wowOutboundRemarks
+    });
 
     return config;
 }
@@ -4549,8 +4533,7 @@ async function getSingboxConfig (env, hostName, client, isWarp, isFragment) {
         customCdnHost,
         customCdnSni,
         bestVLESSTrojanInterval,
-        bestWarpInterval,
-        enableIPv6
+        bestWarpInterval
     } = proxySettings;
 
     let config = structuredClone(singboxConfigTemp);
@@ -4574,7 +4557,7 @@ async function getSingboxConfig (env, hostName, client, isWarp, isFragment) {
     }
 
     let outbound, remark, path;
-    const Addresses = await getConfigAddresses(hostName, cleanIPs, enableIPv6);
+    const Addresses = await getConfigAddresses(hostName, cleanIPs);
     const customCdnAddresses = customCdnAddrs ? customCdnAddrs.split(',') : [];
     const totalAddresses = [...Addresses, ...customCdnAddresses];
     config.dns.servers[0].address = remoteDNS;
@@ -4624,6 +4607,7 @@ async function getSingboxConfig (env, hostName, client, isWarp, isFragment) {
                 let VLESSOutbound, TrojanOutbound;
                 const isCustomAddr = index > Addresses.length - 1;
                 const configType = isCustomAddr ? 'C' : isFragment ? 'F' : '';
+                const configIndex = isCustomAddr ? index - Addresses.length + 1 : index;
                 const sni = isCustomAddr ? customCdnSni : hostName;
                 const host = isCustomAddr ? customCdnHost : hostName;
          
@@ -4704,8 +4688,8 @@ async function getNormalConfigs(env, hostName, client) {
         throw new Error(`An error occurred while getting normal configs - ${error}`);
     }
 
-    const { cleanIPs, proxyIP, ports, vlessConfigs, trojanConfigs , outProxy, customCdnAddrs, customCdnHost, customCdnSni, enableIPv6} = proxySettings;
-    const Addresses = await getConfigAddresses(hostName, cleanIPs, enableIPv6);
+    const { cleanIPs, proxyIP, ports, vlessConfigs, trojanConfigs , outProxy, customCdnAddrs, customCdnHost, customCdnSni} = proxySettings;
+    const Addresses = await getConfigAddresses(hostName, cleanIPs);
     const customCdnAddresses = customCdnAddrs ? customCdnAddrs.split(',') : [];
     const totalAddresses = [...Addresses, ...customCdnAddresses];
     const alpn = client === 'singbox' ? 'http/1.1' : 'h2,http/1.1';
@@ -4718,9 +4702,10 @@ async function getNormalConfigs(env, hostName, client) {
         totalAddresses.forEach((addr, index) => {
             const isCustomAddr = index > Addresses.length - 1;
             const configType = isCustomAddr ? 'C' : '';
-            const sni = isCustomAddr ? customCdnSni : randomUpperCase(hostName);
+            const sni = randomUpperCase(isCustomAddr ? customCdnSni : hostName);
             const host = isCustomAddr ? customCdnHost : hostName;
             const path = `${getRandomPath(16)}${proxyIP ? `/${encodeURIComponent(btoa(proxyIP))}` : ''}${earlyData}`;
+            const configIndex = isCustomAddr ? index - Addresses.length + 1 : index;
             const vlessRemark = encodeURIComponent(generateRemark(proxyIndex, port, addr, cleanIPs, 'VLESS', configType));
             const trojanRemark = encodeURIComponent(generateRemark(proxyIndex + totalAddresses.length * ports.length, port, addr, cleanIPs, 'Trojan', configType));
             const tlsFields = defaultHttpsPorts.includes(port) 
@@ -4891,7 +4876,7 @@ const singboxConfigTemp = {
                 address: "",
                 address_resolver: "dns-direct",
                 strategy: "prefer_ipv4",
-                detour: "proxy",
+                detour: "💦 Best Ping 💥",
                 tag: "dns-remote"
             },
             {
